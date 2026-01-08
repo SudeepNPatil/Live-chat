@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { timeStamp } = require('console');
+const PORT = process.env.PORT;
 
 const app = express();
 
@@ -43,6 +44,6 @@ app.use('/', (req, res) => {
   res.send('Server live now, you can chat now');
 });
 
-server.listen(5000, () => {
-  console.log(`server is running on http://localhost:5000`);
+server.listen(PORT, () => {
+  console.log(`server is running on http://localhost:${PORT}`);
 });
