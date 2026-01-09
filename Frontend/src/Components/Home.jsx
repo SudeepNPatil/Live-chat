@@ -42,7 +42,7 @@ export default function Home() {
   const handleJoinChat = () => {
     if (joinCode.includes('https')) {
       const partlist = joinCode.split('/');
-      id = partlist[partlist.length - 1];
+      const id = partlist[partlist.length - 1];
       window.location.href = `/chat/${id}`;
     } else {
       navigate(`/chat/${joinCode}`);
