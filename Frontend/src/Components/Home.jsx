@@ -7,6 +7,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 const VITE_URL = import.meta.env.VITE_URL;
 
@@ -15,6 +16,7 @@ export default function Home() {
   const [copy, setcopy] = useState(false);
   const [link, setlink] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const navigate = useNavigate();
 
   const createchat = () => {
     const roomid = uuidv4();
@@ -38,8 +40,12 @@ export default function Home() {
   };
 
   const handleJoinChat = () => {
-    if (joinCode.trim()) {
-      window.location.href = `/chat/${joinCode}`;
+    if (!joinCode.includes('https')) {
+      const partlist = joinCode.split('/');
+      const id = partlist[partlist.length - 1];
+      window.location.href = `/chat/${id}`;
+    } else {
+      navigate(`/chat/${id}`);
     }
   };
 
