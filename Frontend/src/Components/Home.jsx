@@ -40,12 +40,12 @@ export default function Home() {
   };
 
   const handleJoinChat = () => {
-    if (!joinCode.includes('https')) {
+    if (joinCode.includes('https')) {
       const partlist = joinCode.split('/');
-      const id = partlist[partlist.length - 1];
+      id = partlist[partlist.length - 1];
       window.location.href = `/chat/${id}`;
     } else {
-      navigate(`/chat/${id}`);
+      navigate(`/chat/${joinCode}`);
     }
   };
 
