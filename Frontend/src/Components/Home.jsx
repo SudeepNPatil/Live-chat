@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
+const VITE_URL = import.meta.env.VITE_URL;
 
 export default function Home() {
   const [modal, setmodal] = useState(false);
@@ -18,7 +18,7 @@ export default function Home() {
 
   const createchat = () => {
     const roomid = uuidv4();
-    setlink(`${SOCKET_URL}/chat/${roomid}`);
+    setlink(`${VITE_URL}/chat/${roomid}`);
     setmodal(true);
   };
 
