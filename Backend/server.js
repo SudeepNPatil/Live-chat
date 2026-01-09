@@ -2,12 +2,13 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { timeStamp } = require('console');
-const PORT = process.env.PORT;
+const dotenv = require('dotenv');
 
 const app = express();
 
 app.use(cors());
+
+dotenv.config();
 
 const server = http.createServer(app);
 
@@ -44,6 +45,6 @@ app.use('/', (req, res) => {
   res.send('Server live now, you can chat now');
 });
 
-server.listen(PORT, () => {
-  console.log(`server is running on http://localhost:${PORT}`);
+server.listen(process.env.PORT, () => {
+  console.log(`server is running on http://localhost:${process.env.PORT}`);
 });

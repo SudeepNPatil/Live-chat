@@ -5,10 +5,11 @@ import {
   X,
   ExternalLink,
   Sparkles,
+  Link,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-const SOCKET_URL = import.meta.SOCKET_URL;
+const SOCKET_URL = import.meta.env.SOCKET_URL;
 
 export default function Home() {
   const [modal, setmodal] = useState(false);
@@ -183,12 +184,13 @@ export default function Home() {
                 platform
               </p>
 
-              <button
-                onClick={() => window.open(link, '_blank')}
+              <Link
+                to={link}
+                target="_blank"
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl py-3 px-6 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
               >
                 Join Chat Now
-              </button>
+              </Link>
             </div>
           </div>
         </div>
