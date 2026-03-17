@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, MessageCircle } from 'lucide-react';
+import { Send, MessageCircle, PhoneIcon } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { socket } from '../Socket/Socket';
 
@@ -9,6 +9,15 @@ export function Chat() {
   const [text, setText] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+const [users, setUsers] = useState([]);
+const [otherUser, setOtherUser] = useState(null);
+const [callActive, setCallActive] = useState(false);
+
+const localVideoRef = useRef(null);
+const remoteVideoRef = useRef(null);
+const peerConnection = useRef(null);
+const localStream = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -20,19 +29,70 @@ export function Chat() {
 
   useEffect(() => {
     socket.connect();
-
     socket.emit('join-room', roomId);
 
     socket.on('receive-message', (data) => {
       setMessages((prev) => [...prev, data]);
     });
 
+    socket.on("users-in-room", (usersList) => {
+       console.log("Users:", usersList);
+    setUsers(usersList);
+
+    const other = usersList.find(id => id !== socket.id);
+     console.log("Other user:", other);
+    setOtherUser(other);
+  });
+
+  socket.on("incoming-call", async ({ from, offer }) => {
+  setCallActive(true); // 👈 FIRST
+
+  setTimeout(async () => {
+
+    localStream.current = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
+    localVideoRef.current.srcObject = localStream.current;
+
+    peerConnection.current = createPeerConnection();
+
+    localStream.current.getTracks().forEach(track => {
+      peerConnection.current.addTrack(track, localStream.current);
+    });
+
+    await peerConnection.current.setRemoteDescription(offer);
+
+    const answer = await peerConnection.current.createAnswer();
+    await peerConnection.current.setLocalDescription(answer);
+
+    socket.emit("answer-call", {
+      to: from,
+      answer,
+    });
+
+  }, 100);
+});
+
+    socket.on("call-answered", async ({ answer }) => {
+      await peerConnection.current.setRemoteDescription(answer);
+    });
+
+    socket.on("ice-candidate", async ({ candidate }) => {
+      if (peerConnection.current) {
+        await peerConnection.current.addIceCandidate(candidate);
+      }
+    });
+
     window.addEventListener('beforeunload', () => {
       socket.disconnect();
     });
-
     return () => {
-      socket.off('receive-message');
+        socket.off("receive-message");
+        socket.off("incoming-call");
+        socket.off("call-answered");
+        socket.off("ice-candidate");
     };
   }, [roomId]);
 
@@ -72,6 +132,63 @@ export function Chat() {
     });
   };
 
+  const createPeerConnection = () => {
+  const pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" }
+    ]
+  });
+
+  pc.ontrack = (event) => {
+    remoteVideoRef.current.srcObject = event.streams[0];
+  };
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate && otherUser) {
+      socket.emit("ice-candidate", {
+        to: otherUser,
+        candidate: event.candidate
+      });
+    }
+  };
+
+  return pc;
+};
+
+const startCall = async () => {
+  if (!otherUser) return alert("No user in room");
+
+  // 🔥 FIRST show video UI
+  setCallActive(true);
+
+  // wait for UI to render
+  setTimeout(async () => {
+
+    localStream.current = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
+    // now ref exists ✅
+    localVideoRef.current.srcObject = localStream.current;
+
+    peerConnection.current = createPeerConnection();
+
+    localStream.current.getTracks().forEach(track => {
+      peerConnection.current.addTrack(track, localStream.current);
+    });
+
+    const offer = await peerConnection.current.createOffer();
+    await peerConnection.current.setLocalDescription(offer);
+
+    socket.emit("call-user", {
+      to: otherUser,
+      offer,
+    });
+
+  }, 100); // small delay for render
+};
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
@@ -85,6 +202,12 @@ export function Chat() {
               <p className="text-sm text-gray-500">{roomId}</p>
             </div>
           </div>
+          <button
+            onClick={startCall}
+            className="text-black px-4 py-2 rounded-lg bg-gray-100 hover:scale-95"
+          >
+            <PhoneIcon />
+          </button>
         </div>
       </div>
 
@@ -170,6 +293,21 @@ export function Chat() {
           </button>
         </div>
       </div>
+
+      {callActive && (
+        <div className="flex gap-4 justify-center p-4 bg-black/40 fixed inset-0 w-screen h-screen">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            className="w-[50%] h-[50%] rounded-lg"
+          />
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            className="w-[50%] h-[50%] rounded-lg"
+          />
+        </div>
+      )}
     </div>
   );
 }

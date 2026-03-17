@@ -58,12 +58,12 @@ export default function Home() {
         <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-full px-4 py-2 shadow-sm">
           <Sparkles className="w-4 h-4 text-blue-500" />
           <span className="text-sm font-medium text-gray-700">
-            Fast & Secure Messaging
+             Fast Chat & Video Calling
           </span>
         </div>
 
         <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-center leading-tight tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
-          Start a Live Chat with Your Loved Ones
+          Start a Live Chat & Video Call with Your Loved Ones
         </h1>
 
         <p className="text-lg text-gray-600 text-center max-w-2xl">
