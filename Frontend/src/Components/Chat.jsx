@@ -36,11 +36,9 @@ const localStream = useRef(null);
     });
 
     socket.on("users-in-room", (usersList) => {
-       console.log("Users:", usersList);
     setUsers(usersList);
 
     const other = usersList.find(id => id !== socket.id);
-     console.log("Other user:", other);
     setOtherUser(other);
   });
 
@@ -132,15 +130,24 @@ const localStream = useRef(null);
     });
   };
 
-  const createPeerConnection = () => {
+const createPeerConnection = () => {
   const pc = new RTCPeerConnection({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" }
-    ]
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
+  // ✅ CREATE ONE GLOBAL REMOTE STREAM
+  const remoteStream = new MediaStream();
+
+  // ✅ SET IT ONCE
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = remoteStream;
+  }
+
+  // ✅ ADD TRACKS INTO SAME STREAM
   pc.ontrack = (event) => {
-    remoteVideoRef.current.srcObject = event.streams[0];
+    console.log("TRACK:", event.track.kind);
+
+    remoteStream.addTrack(event.track);
   };
 
   pc.onicecandidate = (event) => {
@@ -299,11 +306,13 @@ const startCall = async () => {
           <video
             ref={localVideoRef}
             autoPlay
+            muted
             className="w-[50%] h-[50%] rounded-lg"
           />
           <video
             ref={remoteVideoRef}
             autoPlay
+            playsInline
             className="w-[50%] h-[50%] rounded-lg"
           />
         </div>
