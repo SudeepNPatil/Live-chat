@@ -9,6 +9,7 @@ export function Chat() {
   const [text, setText] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const otherUserRef = useRef(null);
 
 const [users, setUsers] = useState([]);
 const [otherUser, setOtherUser] = useState(null);
@@ -18,6 +19,7 @@ const localVideoRef = useRef(null);
 const remoteVideoRef = useRef(null);
 const peerConnection = useRef(null);
 const localStream = useRef(null);
+const iceQueue = useRef([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,7 +41,8 @@ const localStream = useRef(null);
     setUsers(usersList);
 
     const other = usersList.find(id => id !== socket.id);
-    setOtherUser(other);
+setOtherUser(other);
+otherUserRef.current = other;
   });
 
   socket.on("incoming-call", async ({ from, offer }) => {
@@ -62,6 +65,11 @@ const localStream = useRef(null);
 
     await peerConnection.current.setRemoteDescription(offer);
 
+    iceQueue.current.forEach(async (c) => {
+  await peerConnection.current.addIceCandidate(c);
+});
+iceQueue.current = [];
+
     const answer = await peerConnection.current.createAnswer();
     await peerConnection.current.setLocalDescription(answer);
 
@@ -73,15 +81,24 @@ const localStream = useRef(null);
   }, 100);
 });
 
-    socket.on("call-answered", async ({ answer }) => {
-      await peerConnection.current.setRemoteDescription(answer);
-    });
+socket.on("call-answered", async ({ answer }) => {
+  await peerConnection.current.setRemoteDescription(answer);
 
-    socket.on("ice-candidate", async ({ candidate }) => {
-      if (peerConnection.current) {
-        await peerConnection.current.addIceCandidate(candidate);
-      }
-    });
+  iceQueue.current.forEach(async (c) => {
+    await peerConnection.current.addIceCandidate(c);
+  });
+  iceQueue.current = [];
+});
+
+socket.on("ice-candidate", async ({ candidate }) => {
+  if (!peerConnection.current) return;
+
+  if (peerConnection.current.remoteDescription) {
+    await peerConnection.current.addIceCandidate(candidate);
+  } else {
+    iceQueue.current.push(candidate);
+  }
+});
 
     window.addEventListener('beforeunload', () => {
       socket.disconnect();
@@ -135,25 +152,20 @@ const createPeerConnection = () => {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
-  // ✅ CREATE ONE GLOBAL REMOTE STREAM
   const remoteStream = new MediaStream();
 
-  // ✅ SET IT ONCE
   if (remoteVideoRef.current) {
     remoteVideoRef.current.srcObject = remoteStream;
   }
 
-  // ✅ ADD TRACKS INTO SAME STREAM
   pc.ontrack = (event) => {
-    console.log("TRACK:", event.track.kind);
-
     remoteStream.addTrack(event.track);
   };
 
   pc.onicecandidate = (event) => {
-    if (event.candidate && otherUser) {
+    if (event.candidate && otherUserRef.current) {
       socket.emit("ice-candidate", {
-        to: otherUser,
+        to: otherUserRef.current,
         candidate: event.candidate
       });
     }
@@ -161,7 +173,6 @@ const createPeerConnection = () => {
 
   return pc;
 };
-
 const startCall = async () => {
   if (!otherUser) return alert("No user in room");
 
@@ -307,6 +318,7 @@ const startCall = async () => {
             ref={localVideoRef}
             autoPlay
             muted
+            playsInline
             className="w-[50%] h-[50%] rounded-lg"
           />
           <video
