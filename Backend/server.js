@@ -20,7 +20,7 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
-const roomUsers = {};
+
 
 io.on('connection', (socket) => {
   console.log('user connected', socket.id);
@@ -30,20 +30,7 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
-
-  if (!roomUsers[roomId]) {
-    roomUsers[roomId] = [];
-  }
-
-  // add user if not already present
-  if (!roomUsers[roomId].includes(socket.id)) {
-    roomUsers[roomId].push(socket.id);
-  }
-
-  // 🔥 SEND USERS LIST TO ROOM
-  io.to(roomId).emit('users-in-room', roomUsers[roomId]);
-
-    console.log("Users in room:", roomUsers[roomId]);
+    console.log("Users in room:", roomId);
     console.log(`users :  ${socket.id}  joined to room : ${roomId}`);
   });
 
@@ -57,41 +44,42 @@ io.on('connection', (socket) => {
   });
 
 
-  // ---------------this is for view call -------------
+  // ---------------this is for video call -------------
 
-    // Call user (send offer)
-  socket.on('call-user', ({ to, offer }) => {
-    io.to(to).emit('incoming-call', {
-      from: socket.id,
-      offer,
-    });
+    socket.on('offer',({roomId,offer})=>{
+    console.log("offer recieved");
+
+    socket.to(roomId).emit('offer',{offer});
   });
 
-  // Answer call
-  socket.on('answer-call', ({ to, answer }) => {
-    io.to(to).emit('call-answered', {
-      from: socket.id,
-      answer,
-    });
+  socket.on('answer',({roomId,answer})=>{
+    console.log("answer recieved");
+
+    socket.to(roomId).emit('answer',{answer});
   });
 
-  // ICE candidate exchange
-  socket.on('ice-candidate', ({ to, candidate }) => {
-    io.to(to).emit('ice-candidate', {
-      from: socket.id,
-      candidate,
-    });
+  socket.on('ice-candidate',({roomId,candidate})=>{
+    console.log("ICE condidates recieved",candidate,"from",roomId);
+
+    socket.to(roomId).emit('ice-candidate',{candidate});
   });
+
+      socket.on("call-request", ({ roomId }) => {
+        console.log("callrequest recieved")
+      socket.to(roomId).emit("call-request");
+    });
+
+    socket.on("call-accepted", ({ roomId }) => {
+       console.log("call accepted")
+      socket.to(roomId).emit("call-accepted");
+    });
+
+    socket.on("call-rejected", ({ roomId }) => {
+       console.log("call rejected")
+      socket.to(roomId).emit("call-rejected");
+    });
 
   socket.on('disconnect', () => {
-      for (const roomId in roomUsers) {
-    roomUsers[roomId] = roomUsers[roomId].filter(
-      id => id !== socket.id
-    );
-
-    // update remaining users
-    io.to(roomId).emit('users-in-room', roomUsers[roomId]);
-  }
     console.log('user disconnected!', socket.id);
   });
 });
