@@ -1,25 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, MessageCircle, PhoneIcon } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Send, MessageCircle, PhoneIcon, PhoneOutgoingIcon, PhoneIncoming } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../Socket/Socket';
 
 export function Chat() {
   const { roomId } = useParams();
   const [messages, setMessages] = useState([]);
+  const navigate = useNavigate()
   const [text, setText] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const otherUserRef = useRef(null);
-
-const [users, setUsers] = useState([]);
-const [otherUser, setOtherUser] = useState(null);
-const [callActive, setCallActive] = useState(false);
-
-const localVideoRef = useRef(null);
-const remoteVideoRef = useRef(null);
-const peerConnection = useRef(null);
-const localStream = useRef(null);
-const iceQueue = useRef([]);
+  const [calling, setCalling] = useState(false);
+  const [incomingCall, setIncomingCall] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,79 +29,44 @@ const iceQueue = useRef([]);
       setMessages((prev) => [...prev, data]);
     });
 
-    socket.on("users-in-room", (usersList) => {
-    setUsers(usersList);
-
-    const other = usersList.find(id => id !== socket.id);
-setOtherUser(other);
-otherUserRef.current = other;
-  });
-
-  socket.on("incoming-call", async ({ from, offer }) => {
-  setCallActive(true); // 👈 FIRST
-
-  setTimeout(async () => {
-
-    localStream.current = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-
-    localVideoRef.current.srcObject = localStream.current;
-
-    peerConnection.current = createPeerConnection();
-
-    localStream.current.getTracks().forEach(track => {
-      peerConnection.current.addTrack(track, localStream.current);
-    });
-
-    await peerConnection.current.setRemoteDescription(offer);
-
-    iceQueue.current.forEach(async (c) => {
-  await peerConnection.current.addIceCandidate(c);
-});
-iceQueue.current = [];
-
-    const answer = await peerConnection.current.createAnswer();
-    await peerConnection.current.setLocalDescription(answer);
-
-    socket.emit("answer-call", {
-      to: from,
-      answer,
-    });
-
-  }, 100);
-});
-
-socket.on("call-answered", async ({ answer }) => {
-  await peerConnection.current.setRemoteDescription(answer);
-
-  iceQueue.current.forEach(async (c) => {
-    await peerConnection.current.addIceCandidate(c);
-  });
-  iceQueue.current = [];
-});
-
-socket.on("ice-candidate", async ({ candidate }) => {
-  if (!peerConnection.current) return;
-
-  if (peerConnection.current.remoteDescription) {
-    await peerConnection.current.addIceCandidate(candidate);
-  } else {
-    iceQueue.current.push(candidate);
-  }
-});
-
     window.addEventListener('beforeunload', () => {
       socket.disconnect();
     });
     return () => {
         socket.off("receive-message");
-        socket.off("incoming-call");
-        socket.off("call-answered");
-        socket.off("ice-candidate");
     };
   }, [roomId]);
+
+useEffect(() => {
+
+    socket.on("call-request", () => {
+    console.log("📥 Incoming call received"); // 👈 check this
+
+    setIncomingCall(true);
+  });
+
+  socket.on("call-accepted", () => {
+    console.log("✅ Accepted");
+
+    setCalling(false);
+
+    navigate(`/video/${roomId}`, { state: { isCaller: true } }); // 🚀 go to video
+  });
+
+  socket.on("call-rejected", () => {
+    console.log("❌ Rejected");
+
+    setCalling(false);
+
+    alert("Call rejected");
+  });
+
+  return () => {
+    socket.off("call-accepted");
+    socket.off("call-rejected");
+    socket.off("call-request");
+  };
+}, []);
 
   const sendMessage = () => {
     if (!text.trim()) return;
@@ -147,67 +104,27 @@ socket.on("ice-candidate", async ({ candidate }) => {
     });
   };
 
-const createPeerConnection = () => {
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  const remoteStream = new MediaStream();
-
-  if (remoteVideoRef.current) {
-    remoteVideoRef.current.srcObject = remoteStream;
-  }
-
-  pc.ontrack = (event) => {
-    remoteStream.addTrack(event.track);
-  };
-
-  pc.onicecandidate = (event) => {
-    if (event.candidate && otherUserRef.current) {
-      socket.emit("ice-candidate", {
-        to: otherUserRef.current,
-        candidate: event.candidate
-      });
-    }
-  };
-
-  return pc;
+const handleCall = () => {
+  socket.emit("call-request", { roomId }); // 🔔 signal only
+  setCalling(true);
 };
-const startCall = async () => {
-  if (!otherUser) return alert("No user in room");
 
-  // 🔥 FIRST show video UI
-  setCallActive(true);
+const acceptCall = () => {
+  socket.emit("call-accepted", { roomId });
 
-  // wait for UI to render
-  setTimeout(async () => {
+  setIncomingCall(false);
 
-    localStream.current = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+  navigate(`/video/${roomId}`, { state: { isCaller: false } }); // 🚀 go to video
+};
 
-    // now ref exists ✅
-    localVideoRef.current.srcObject = localStream.current;
+const rejectCall = () => {
+  socket.emit("call-rejected", { roomId });
 
-    peerConnection.current = createPeerConnection();
-
-    localStream.current.getTracks().forEach(track => {
-      peerConnection.current.addTrack(track, localStream.current);
-    });
-
-    const offer = await peerConnection.current.createOffer();
-    await peerConnection.current.setLocalDescription(offer);
-
-    socket.emit("call-user", {
-      to: otherUser,
-      offer,
-    });
-
-  }, 100); // small delay for render
+  setIncomingCall(false);
 };
 
   return (
+    <>
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
@@ -221,7 +138,7 @@ const startCall = async () => {
             </div>
           </div>
           <button
-            onClick={startCall}
+            onClick={handleCall}
             className="text-black px-4 py-2 rounded-lg bg-gray-100 hover:scale-95"
           >
             <PhoneIcon />
@@ -311,24 +228,35 @@ const startCall = async () => {
           </button>
         </div>
       </div>
+      
+    </div>
 
-      {callActive && (
-        <div className="flex gap-4 justify-center p-4 bg-black/40 fixed inset-0 w-screen h-screen">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="w-[50%] h-[50%] rounded-lg"
-          />
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="w-[50%] h-[50%] rounded-lg"
-          />
+    {calling && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 ">
+          <div className="bg-white p-6 rounded-xl flex flex-col gap-4 h-[45%] w-[40%] items-center">
+            <PhoneOutgoingIcon size={40} className='mt-10'/>
+            <p className='text-xl text-center font-bold '>📞 Calling...</p>
+            <p className='text-gray-700 text-sm'>Call is about connect, please wait for a mument.</p>
+            <button onClick={() => setCalling(false)} className='py-2 px-4 w-full rounded-xl border hover:bg-red-100'>Cancel</button>
+          </div>
         </div>
       )}
-    </div>
+
+      {incomingCall && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 ">
+          <div className="bg-white p-6 rounded-xl flex flex-col gap-4 h-[45%] w-[40%] items-center">
+             <PhoneIncoming size={40} className='mt-10'/>
+          <p className='text-xl text-center font-bold'>📞 Incoming Call</p>
+          <p className='text-gray-700 text-sm'>Accept the Call and enjoy with your loved one.</p>
+          <div className='flex flex-row gap-8 w-full'>
+            <button onClick={acceptCall} className='py-2 px-4 w-full rounded-xl border hover:bg-green-100'>Accept</button>
+            <button onClick={rejectCall} className='py-2 px-4 w-full rounded-xl border hover:bg-red-100'>Reject</button>
+           </div>
+        </div>
+
+        </div>
+      )}
+
+    </>
   );
 }

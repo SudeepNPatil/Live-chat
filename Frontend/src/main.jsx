@@ -5,6 +5,7 @@ import App from './App.jsx';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Home from './Components/Home.jsx';
 import { Chat } from './Components/Chat.jsx';
+import Video from './Components/Video.jsx';
 
 const router = createBrowserRouter([
   {
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
       {
         path: '/chat/:roomId',
         element: <Chat />,
+      },
+        {
+        path: '/video/:roomId',
+        element: <Video />,
       },
     ],
   },
